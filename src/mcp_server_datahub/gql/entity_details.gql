@@ -954,6 +954,19 @@ fragment entityPreview on Entity {
       name
       description
     }
+    entities(input: {
+      start: 0
+    query: "*"}) {
+      searchResults {
+        entity {
+          urn
+          ... on Dataset {
+            
+            name
+          }
+        }
+      }
+    }    
     structuredProperties {
       properties {
         ...structuredPropertiesFields
