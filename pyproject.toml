@@ -1,5 +1,5 @@
 [project]
-name = "mcp-server-datahub"
+name = "mano-datahub-mcp"
 dynamic = ["version"]
 description = "A Model Context Protocol (MCP) server for DataHub"
 readme = "README.md"
@@ -22,11 +22,11 @@ dev = [
 ]
 
 [project.urls]
-"Source" = "https://github.com/acryldata/mcp-server-datahub"
+"Source" = "https://github.com/mano1233/mcp-server-datahub"
 "Documentation" = "https://docs.datahub.com/docs/features/feature-guides/mcp"
 
 [project.scripts]
-mcp-server-datahub = "mcp_server_datahub.__main__:main"
+mano-datahub-mcp = "mcp_server_datahub.__main__:main"
 
 [build-system]
 requires = ["setuptools>=64", "setuptools-scm>=8"]

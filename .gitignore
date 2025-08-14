@@ -1,5 +1,6 @@
 .claude/settings.local.json
 .graphqlrc.yml
+.cursor/*
 
 # Python-generated files
 __pycache__/

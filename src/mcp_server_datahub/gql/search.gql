@@ -1,6 +1,25 @@
 fragment SearchEntityInfo on Entity {
   urn
-
+  ... on StructuredPropertyEntity {
+    definition {
+      displayName
+      qualifiedName
+      description
+      allowedValues {
+        value {
+          ... on StringValue {
+            stringValue
+          }
+          ... on NumberValue {
+            numberValue
+          }
+        }
+        description
+      }
+      cardinality
+    }
+  }
+      
   # For some entity types, the urns are not human-readable. For those,
   # we pull the name as well.
   ... on Dataset {

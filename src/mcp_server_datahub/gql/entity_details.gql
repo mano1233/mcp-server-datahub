@@ -795,6 +795,11 @@ fragment entityPreview on Entity {
         value
       }
     }
+    structuredProperties {
+      properties {
+        ...structuredPropertiesFields
+      }
+    }
     deprecation {
       ...deprecationFields
     }
@@ -803,6 +808,11 @@ fragment entityPreview on Entity {
     properties {
       name
       description
+    }
+    structuredProperties {
+      properties {
+        ...structuredPropertiesFields
+      }
     }
   }
   ... on MLFeatureTable {
@@ -943,6 +953,11 @@ fragment entityPreview on Entity {
     properties {
       name
       description
+    }
+    structuredProperties {
+      properties {
+        ...structuredPropertiesFields
+      }
     }
   }
   ... on Container {
