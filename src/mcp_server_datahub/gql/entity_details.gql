@@ -500,7 +500,7 @@ fragment parentDomainsFields on ParentDomainsResult {
 fragment entityPreview on Entity {
   urn
   ... on Dataset {
-    name
+    name  
     platform {
       ...platformFields
     }
@@ -783,6 +783,64 @@ fragment entityPreview on Entity {
   }
   ... on GlossaryTerm {
     hierarchicalName
+    institutionalMemory {
+      elements {
+        url
+        label
+        
+      }
+    }
+    alias_of: relationships(input: {
+      types: ["IsA"],
+      direction: INCOMING
+    }) {
+      count
+      relationships {
+        entity {
+          urn
+          ... on GlossaryTerm {
+            properties {
+              name
+            }
+          }
+        }
+      }
+    }
+  aliased_to: relationships(input: {
+      types: ["IsA"],
+      direction: OUTGOING
+    }) {
+      count
+      relationships {
+        entity {
+          urn
+          ... on GlossaryTerm {
+            properties {
+              name
+            }
+          }
+        }
+      }
+    }
+    ownership {
+      owners {
+       owner {
+        ... on CorpUser {
+          username
+        }
+       }
+      ownershipType {
+        info {
+          name
+        }
+       }
+      }      
+     }
+    parentNodes {
+      nodes {
+        urn
+      }
+    }
     properties {
       name
       description
@@ -950,19 +1008,44 @@ fragment entityPreview on Entity {
   }
   ... on DataProduct {
     urn
+    institutionalMemory {
+      elements {
+        url
+        label
+        
+      }
+    }
+    ownership {
+      owners {
+       owner {
+        ... on CorpUser {
+          username
+        }
+       }
+      ownershipType {
+        info {
+          name
+        }
+       }
+      }      
+     }
     properties {
       name
       description
     }
-    entities(input: {
+    tables: entities(input: {
       start: 0
     query: "*"}) {
       searchResults {
         entity {
           urn
           ... on Dataset {
-            
+            subTypes {
+              typeNames
+            }
             name
+            urn
+            
           }
         }
       }
