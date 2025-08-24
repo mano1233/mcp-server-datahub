@@ -30,84 +30,24 @@ fragment ownershipFields on Ownership {
           displayName
           title
           email
-          __typename
         }
-        editableProperties {
-          displayName
-          title
-          email
-          __typename
-        }
-        __typename
       }
       ... on CorpGroup {
         urn
         name
-        properties {
-          displayName
-          email
-          __typename
-        }
         info {
           displayName
           email
-          admins {
-            urn
-            info {
-              active
-              displayName
-              title
-              email
-              __typename
-            }
-            editableInfo {
-              teams
-              skills
-              __typename
-            }
-            __typename
-          }
-          members {
-            urn
-            properties {
-              active
-              displayName
-              title
-              email
-              __typename
-            }
-            editableInfo {
-              teams
-              skills
-              __typename
-            }
-            __typename
-          }
-          groups
-          __typename
         }
-        __typename
       }
-      __typename
     }
-    type
     ownershipType {
-      urn
-      type
       info {
         name
         description
-        __typename
       }
-      status {
-        removed
-        __typename
-      }
-      __typename
     }
-    __typename
   }
-  __typename
 }
 fragment nonRecursiveDataFlowFields on DataFlow {
   urn
@@ -184,6 +124,24 @@ fragment glossaryTerm on GlossaryTerm {
     }
     __typename
   }
+  structuredProperties {
+    properties {
+      structuredProperty {
+        definition {
+          displayName
+          description
+        }
+      }
+      values {
+        ... on StringValue {
+          stringValue
+        }
+        ... on NumberValue {
+          numberValue
+        }
+      }
+    }
+    }
   ownership {
     ...ownershipFields
     __typename
@@ -200,16 +158,12 @@ fragment glossaryTerms on GlossaryTerms {
   terms {
     term {
       ...glossaryTerm
-      __typename
     }
     actor {
       urn
-      __typename
     }
     #[CLOUD] context
-    __typename
   }
-  __typename
 }
 fragment displayPropertiesFields on DisplayProperties {
   icon {
@@ -227,20 +181,11 @@ fragment entityDomain on DomainAssociation {
     properties {
       name
       description
-      __typename
     }
     parentDomains {
       ...parentDomainsFields
-      __typename
     }
-    ...domainEntitiesFields
-    displayProperties {
-      ...displayPropertiesFields
-      __typename
-    }
-    __typename
   }
-  __typename
 }
 
 fragment entityDataProduct on Entity {
@@ -256,26 +201,15 @@ fragment entityDataProduct on Entity {
       type
       entity {
         urn
-        type
         ... on DataProduct {
           properties {
             name
             description
-            __typename
           }
-          domain {
-            ...entityDomain
-            __typename
-          }
-          __typename
         }
-        __typename
       }
-      __typename
     }
-    __typename
   }
-  __typename
 }
 fragment deprecationFields on Deprecation {
   actor
@@ -476,25 +410,15 @@ fragment domainEntitiesFields on Domain {
 }
 
 fragment parentDomainsFields on ParentDomainsResult {
-  count
   domains {
     urn
-    type
     ... on Domain {
-      displayProperties {
-        ...displayPropertiesFields
-        __typename
-      }
       properties {
         name
         description
-        __typename
       }
-      __typename
     }
-    __typename
   }
-  __typename
 }
 
 fragment entityPreview on Entity {
@@ -504,17 +428,8 @@ fragment entityPreview on Entity {
     platform {
       ...platformFields
     }
-    editableProperties {
-      name
-      description
-    }
     properties {
-      name
       description
-      customProperties {
-        key
-        value
-      }
     }
     ownership {
       ...ownershipFields
@@ -1263,20 +1178,19 @@ fragment entitySchemaFieldEntityFields on SchemaFieldEntity {
 
 fragment entitySchemaFieldFields on SchemaField {
   fieldPath
-  label
-  jsonPath
-  nullable
   description
   # type
   nativeDataType
-  recursive
-  isPartOfKey
-  isPartitioningKey
-  tags {
-    ...globalTagsFields
-  }
   glossaryTerms {
-    ...glossaryTerms
+    terms{
+      term{
+        urn
+        properties {
+          name
+          description
+        }
+      }
+    }
   }
   schemaFieldEntity {
     ...entitySchemaFieldEntityFields
@@ -1289,15 +1203,6 @@ fragment schemaMetadataFields on SchemaMetadata {
   name
   platformUrn
   cluster
-  platformSchema {
-    ... on TableSchema {
-      schema
-    }
-    ... on KeyValueSchema {
-      keySchema
-      valueSchema
-    }
-  }
   fields {
     ...entitySchemaFieldFields
   }
