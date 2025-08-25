@@ -184,6 +184,11 @@ fragment glossaryTerm on GlossaryTerm {
     }
     __typename
   }
+    structuredProperties {
+      properties {
+        ...structuredPropertiesFields
+      }
+    }
   ownership {
     ...ownershipFields
     __typename
@@ -531,18 +536,12 @@ fragment entityPreview on Entity {
         ...structuredPropertiesFields
       }
     }
-    subTypes {
-      typeNames
-    }
     domain {
       ...entityDomain
     }
     ...entityDataProduct
     deprecation {
       ...deprecationFields
-    }
-    health {
-      ...entityHealth
     }
     #[CLOUD] statsSummary {
     #[CLOUD]   queryCountLast30Days

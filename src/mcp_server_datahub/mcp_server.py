@@ -201,7 +201,7 @@ def _parse_institutional_memory(knowledge_links: dict) -> dict:
             flattened_links.append({"url": url, "name": name})
     return {"knowledge_links": flattened_links}
 
-def _parse_dataset_relationships(dataset: dict) -> dict:
+def _parse_dataproduct_relationships(data_product: dict) -> dict:
     """
     Parses a dataset relationship dict and flattens it to only include:
     - urn
@@ -211,8 +211,6 @@ def _parse_dataset_relationships(dataset: dict) -> dict:
 
     Returns the flattened dict.
     """
-    urn = dataset.get("entity", {}).get("urn")
-    data_product = dataset.get("entity", {}).get("dataProduct", {})
     relationships = data_product.get("relationships", [])
     dataproduct_urn = None
     dataproduct_name = None
@@ -229,7 +227,6 @@ def _parse_dataset_relationships(dataset: dict) -> dict:
             break
 
     flattened = {
-        "urn": urn,
         "dataproduct_urn": dataproduct_urn,
         "dataproduct_name": dataproduct_name,
         "dataproduct_description": dataproduct_description,
@@ -258,31 +255,61 @@ def _parse_parent_nodes(parent_nodes: dict) -> list:
     nodes = parent_nodes.get("nodes", [])
     return [node.get("urn") for node in nodes if "urn" in node]
 
-def _clean_glossary_term_response(response: dict) -> dict:
-    # Move keys from 'properties' to main dict and remove 'properties' field
+def _parse_domain(domain: dict) -> list:
+    """
+    Flattens the domain dict to a list of dicts with 'urn', 'name', and 'description'.
+    Handles parent domains as well.
+    """
+    domains = []
+    if not domain:
+        return domains
+
+    # Add the main domain
+    domains.append({
+        "urn": domain.get("urn"),
+        "name": domain.get("properties", {}).get("name"),
+        "description": domain.get("properties", {}).get("description")
+    })
+
+    # Add parent domains if present
+    parent_domains = domain.get("parentDomains", {}).get("domains", [])
+    for parent in parent_domains:
+        domains.append({
+            "urn": parent.get("urn"),
+            "name": parent.get("properties", {}).get("name"),
+            "description": parent.get("properties", {}).get("description")
+        })
+
+    return domains
+
+def _parse_field(field: dict) -> dict:
+    """
+    Parses a field dict to a list of dicts with 'name' and 'description'.
+    """
+    final_field = {}
+    final_field["name"] = field.get("fieldPath")
+    final_field["description"] = field.get("description")
+    final_field["type"] = field.get("nativeDataType")
+    glossary_terms = []
+    for glossary_term in field.get("glossaryTerms", {}).get("terms", []):
+        final_glossary_term = {}
+        final_glossary_term["name"] = glossary_term.get("term", {}).get("properties", {}).get("name")
+        final_glossary_term["urn"] = glossary_term.get("term", {}).get("urn")
+        final_glossary_term["description"] = glossary_term.get("term", {}).get("properties", {}).get("description")
+        for prop in _parse_structured_properties(glossary_term.get("term", {}).get("structuredProperties", {})):
+            if "term_type" in prop["qualifiedName"]:
+                final_glossary_term["term_type"] = prop["values"]
+            else:
+                final_field[prop["qualifiedName"].split(".")[-1]] = prop["values"]
+        glossary_terms.append(final_glossary_term)
+    final_field["glossary_terms"] = glossary_terms
+    return final_field
+
+def _clean_entity_response(response: dict) -> dict:
     if response and (properties := response.get("properties")):
         response.update(properties)
         response.pop("properties", None)
         response.pop("termSource", None)
-    # Clean up glossary term relationships - remove SchemaFieldWithGlossaryTerm without data products
-    if response and (relationships := response.get("datasets", {}).get("relationships")):
-        # Filter out SchemaFieldWithGlossaryTerm relationships that don't have data products
-        filtered_relationships = []
-        for rel in relationships:
-            if rel.get("type") == "SchemaFieldWithGlossaryTerm":
-                # Check if the entity has data products with relationships
-                entity = rel.get("entity", {})
-                data_product = entity.get("dataProduct", {})
-                data_product_rels = data_product.get("relationships", [])
-                
-                # Only keep relationships that have data products with actual relationships
-                if data_product_rels:
-                    rel = _parse_dataset_relationships(rel)
-                    filtered_relationships.append(rel)
-        
-        # Update the relationships list
-        response["datasets"] = filtered_relationships
-        
     if response and (structured_properties := response.get("structuredProperties")):
         response["structuredProperties"] = _parse_structured_properties(structured_properties)
     
@@ -294,8 +321,51 @@ def _clean_glossary_term_response(response: dict) -> dict:
         response.pop("institutionalMemory", None)
         
     if response and (parent_nodes := response.get("parentNodes")):
-        response["parentNodes"] = _parse_parent_nodes(parent_nodes)
+        response["parentNodes"] = _parse_parent_nodes(parent_nodes) 
+    return response
 
+def _clean_glossary_term_response(response: dict) -> dict:
+    # Clean up glossary term relationships - remove SchemaFieldWithGlossaryTerm without data products
+    if response and (relationships := response.get("datasets", {}).get("relationships")):
+        # Filter out SchemaFieldWithGlossaryTerm relationships that don't have data products
+        filtered_relationships = []
+        for rel in relationships:
+            if rel.get("type") == "SchemaFieldWithGlossaryTerm":
+                # Check if the entity has data products with relationships
+                entity = rel.get("entity", {})
+                data_product = entity.get("dataProduct", {})
+                data_product_rels = data_product.get("relationships", [])
+                dataset_urn = rel.get("entity", {}).get("urn")
+                
+                # Only keep relationships that have data products with actual relationships
+                if data_product_rels:
+                    rel = _parse_dataproduct_relationships(data_product)
+                    rel["dataset_urn"] = dataset_urn
+                    filtered_relationships.append(rel)
+        
+        # Update the relationships list
+        response["datasets"] = filtered_relationships
+
+    return response
+
+def _clean_dataset_response(response: dict) -> dict:
+    """
+    Cleans dataset response by parsing relationships and applying dataset-specific cleaning.
+    """
+    parsed_dataproduct = _parse_dataproduct_relationships(response.get("dataProduct", {}))
+    response["dataProduct"] = parsed_dataproduct
+    response["table_name"] = response.get("schemaMetadata", {}).get("name")
+    response["platform_name"] = response.get("platform", {}).get("name")
+    response.pop("platform", None)
+    response.pop("viewProperties", None)
+    columns = []
+    for field in response.get("schemaMetadata", {}).get("fields", []):
+        columns.append(_parse_field(field))
+    response["columns"] = columns
+    response.pop("schemaMetadata", None)
+    response["domains"] = _parse_domain(response.get("domain", {}).get("domain", {}))
+    response.pop("domain", None)
+    
     return response
 
 def clean_get_entity_response(raw_response: dict) -> dict:
@@ -316,8 +386,12 @@ def clean_get_entity_response(raw_response: dict) -> dict:
                 if field.get("isPartOfKey") is False:
                     field.pop("isPartOfKey", None)
                     
-    if response and response.get("type") == "GLOSSARY_TERM":
-        return _clean_glossary_term_response(response)
+    if response and response.get("type") in ["GLOSSARY_TERM", "DATASET"]:
+        response = _clean_entity_response(response)
+        if response.get("type") == "GLOSSARY_TERM":
+            return _clean_glossary_term_response(response)
+        elif response.get("type") == "DATASET":
+            return _clean_dataset_response(response)
 
     
 
