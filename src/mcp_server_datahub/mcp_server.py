@@ -1,8 +1,10 @@
+import ast
 import contextlib
 import contextvars
 import functools
 import inspect
 import pathlib
+import json
 from typing import (
     Any,
     Awaitable,
@@ -151,6 +153,150 @@ def clean_gql_response(response: Any) -> Any:
     else:
         return response
 
+# def _parse_ownership(ownership: dict) -> dict:
+
+def _parse_structured_properties(structured_properties: dict) -> dict:
+    """
+    Flattens the structuredProperties dict to a list of property dicts, each containing:
+    - urn
+    - displayName
+    - qualifiedName
+    - values (list of stringValue)
+    Returns a list of property dicts.
+    """
+    result = []
+    properties_list = structured_properties.get("properties", [])
+    for prop in properties_list:
+        structured_prop = prop.get("structuredProperty", {})
+        values = prop.get("values", [])
+        if "stringValue" in json.dumps(values):
+                # Use ast.literal_eval to preserve empty values and handle Python literals safely
+                try:
+                    values = [ast.literal_eval(v.get("stringValue")) for v in values]
+                except (ValueError, SyntaxError):
+                    # Fallback to string values if parsing fails
+                    values = [v.get("stringValue") for v in values]
+        if "numberValue" in json.dumps(values):
+            values = [v.get("numberValue") for v in values]
+        flattened = {
+            "urn": structured_prop.get("urn"),
+            "displayName": structured_prop.get("definition", {}).get("displayName"),
+            "qualifiedName": structured_prop.get("definition", {}).get("qualifiedName"),
+            "values": values,
+        }
+        result.append(flattened)
+    return result
+
+def _parse_institutional_memory(knowledge_links: dict) -> dict:
+    """
+    Flattens the institutionalMemory/knowledge_links dict to a list of dicts with 'url' and 'name' (from 'label').
+    Returns a dict with key 'knowledge_links' and value as the list.
+    """
+    elements = knowledge_links.get("elements", [])
+    flattened_links = []
+    for element in elements:
+        url = element.get("url")
+        name = element.get("label")
+        if url or name:
+            flattened_links.append({"url": url, "name": name})
+    return {"knowledge_links": flattened_links}
+
+def _parse_dataset_relationships(dataset: dict) -> dict:
+    """
+    Parses a dataset relationship dict and flattens it to only include:
+    - urn
+    - dataproduct_name
+    - dataproduct_description
+    - dataproduct_urn
+
+    Returns the flattened dict.
+    """
+    urn = dataset.get("entity", {}).get("urn")
+    data_product = dataset.get("entity", {}).get("dataProduct", {})
+    relationships = data_product.get("relationships", [])
+    dataproduct_urn = None
+    dataproduct_name = None
+    dataproduct_description = None
+
+    # Find the first DataProductContains relationship, if any
+    for rel in relationships:
+        if rel.get("type") == "DataProductContains":
+            entity = rel.get("entity", {})
+            dataproduct_urn = entity.get("urn")
+            properties = entity.get("properties", {})
+            dataproduct_name = properties.get("name")
+            dataproduct_description = properties.get("description")
+            break
+
+    flattened = {
+        "urn": urn,
+        "dataproduct_urn": dataproduct_urn,
+        "dataproduct_name": dataproduct_name,
+        "dataproduct_description": dataproduct_description,
+    }
+    return flattened
+
+def _parse_ownership(ownership: dict) -> dict:
+    """
+    Converts an ownership dict to a list of owners with username and ownership type.
+    """
+    owners = ownership.get("owners", [])
+    flattened_owners = []
+    for owner_entry in owners:
+        username = owner_entry.get("owner", {}).get("username")
+        ownership_type = owner_entry.get("ownershipType", {}).get("info", {}).get("name")
+        flattened_owners.append({
+            "username": username,
+            "ownershipType": ownership_type
+        })
+    return flattened_owners
+
+def _parse_parent_nodes(parent_nodes: dict) -> list:
+    """
+    Flattens the parentNodes dict to a list of urns.
+    """
+    nodes = parent_nodes.get("nodes", [])
+    return [node.get("urn") for node in nodes if "urn" in node]
+
+def _clean_glossary_term_response(response: dict) -> dict:
+    # Move keys from 'properties' to main dict and remove 'properties' field
+    if response and (properties := response.get("properties")):
+        response.update(properties)
+        response.pop("properties", None)
+        response.pop("termSource", None)
+    # Clean up glossary term relationships - remove SchemaFieldWithGlossaryTerm without data products
+    if response and (relationships := response.get("datasets", {}).get("relationships")):
+        # Filter out SchemaFieldWithGlossaryTerm relationships that don't have data products
+        filtered_relationships = []
+        for rel in relationships:
+            if rel.get("type") == "SchemaFieldWithGlossaryTerm":
+                # Check if the entity has data products with relationships
+                entity = rel.get("entity", {})
+                data_product = entity.get("dataProduct", {})
+                data_product_rels = data_product.get("relationships", [])
+                
+                # Only keep relationships that have data products with actual relationships
+                if data_product_rels:
+                    rel = _parse_dataset_relationships(rel)
+                    filtered_relationships.append(rel)
+        
+        # Update the relationships list
+        response["datasets"] = filtered_relationships
+        
+    if response and (structured_properties := response.get("structuredProperties")):
+        response["structuredProperties"] = _parse_structured_properties(structured_properties)
+    
+    if response and (ownership := response.get("ownership")):
+        response["ownership"] = _parse_ownership(ownership)
+    
+    if response and (institutional_memory := response.get("institutionalMemory")):
+        response.update(_parse_institutional_memory(institutional_memory))
+        response.pop("institutionalMemory", None)
+        
+    if response and (parent_nodes := response.get("parentNodes")):
+        response["parentNodes"] = _parse_parent_nodes(parent_nodes)
+
+    return response
 
 def clean_get_entity_response(raw_response: dict) -> dict:
     response = clean_gql_response(raw_response)
@@ -169,8 +315,33 @@ def clean_get_entity_response(raw_response: dict) -> dict:
                     field.pop("recursive", None)
                 if field.get("isPartOfKey") is False:
                     field.pop("isPartOfKey", None)
+                    
+    if response and response.get("type") == "GLOSSARY_TERM":
+        return _clean_glossary_term_response(response)
+
+    
 
     return response
+
+
+def _remove_empty_fields(obj):
+    """Recursively remove empty fields from dictionaries and lists."""
+    if isinstance(obj, dict):
+        # Create a new dict with non-empty values
+        cleaned = {}
+        for key, value in obj.items():
+            cleaned_value = _remove_empty_fields(value)
+            # Only keep non-empty values (not None, not empty dict/list, not empty string)
+            if cleaned_value is not None and cleaned_value != {} and cleaned_value != [] and cleaned_value != "":
+                cleaned[key] = cleaned_value
+        return cleaned
+    elif isinstance(obj, list):
+        # Filter out empty items from lists
+        cleaned_list = [_remove_empty_fields(item) for item in obj]
+        return [item for item in cleaned_list if item is not None and item != {} and item != [] and item != ""]
+    else:
+        # Return primitive values as-is
+        return obj
 
 
 @mcp.tool(description="Get an entity by its DataHub URN.")

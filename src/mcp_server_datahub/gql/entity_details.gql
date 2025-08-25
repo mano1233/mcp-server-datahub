@@ -499,6 +499,7 @@ fragment parentDomainsFields on ParentDomainsResult {
 
 fragment entityPreview on Entity {
   urn
+  type
   ... on Dataset {
     name  
     platform {
@@ -790,11 +791,24 @@ fragment entityPreview on Entity {
         
       }
     }
+    datasets: relationships(input:{
+      direction: INCOMING,
+      types: ["SchemaFieldWithGlossaryTerm"]
+    }) {
+      relationships {
+        type
+        entity {
+          ... on Dataset{
+          urn
+          ...entityDataProduct
+        }
+        }
+      }
+    }
     alias_of: relationships(input: {
       types: ["IsA"],
       direction: INCOMING
     }) {
-      count
       relationships {
         entity {
           urn
@@ -810,7 +824,6 @@ fragment entityPreview on Entity {
       types: ["IsA"],
       direction: OUTGOING
     }) {
-      count
       relationships {
         entity {
           urn
