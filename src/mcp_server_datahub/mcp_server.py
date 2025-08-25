@@ -368,6 +368,22 @@ def _clean_dataset_response(response: dict) -> dict:
     
     return response
 
+def _clean_data_product_response(response: dict) -> dict:
+    """
+    Cleans data product response by flattening tables to table_name and table_urn.
+    """
+    if response and (tables := response.get("tables", {}).get("searchResults")):
+        flattened_tables = []
+        for table in tables:
+            entity = table.get("entity", {})
+            flattened_tables.append({
+                "name": entity.get("name"),
+                "urn": entity.get("urn")
+            })
+        response["tables"] = flattened_tables
+    
+    return response
+
 def clean_get_entity_response(raw_response: dict) -> dict:
     response = clean_gql_response(raw_response)
 
@@ -386,12 +402,14 @@ def clean_get_entity_response(raw_response: dict) -> dict:
                 if field.get("isPartOfKey") is False:
                     field.pop("isPartOfKey", None)
                     
-    if response and response.get("type") in ["GLOSSARY_TERM", "DATASET"]:
+    if response and response.get("type") in ["GLOSSARY_TERM", "DATASET", "DATA_PRODUCT"]:
         response = _clean_entity_response(response)
         if response.get("type") == "GLOSSARY_TERM":
             return _clean_glossary_term_response(response)
         elif response.get("type") == "DATASET":
             return _clean_dataset_response(response)
+        elif response.get("type") == "DATA_PRODUCT":
+            return _clean_data_product_response(response)
 
     
 
